@@ -32,6 +32,34 @@ const CONTEXT = {
 	getCurrentTime: () => Date.now(),
 }
 
+const diff = jest.fn()
+const StateTrackerMock = {
+	isDeviceAhead: jest.fn(() => true),
+	updateExpectedState: jest.fn(),
+	getExpectedState: jest.fn(),
+	updateState: jest.fn(),
+	getCurrentState: jest.fn(() => ({})),
+	getAllAddresses: jest.fn(() => ['entry1']),
+	clearState: jest.fn(),
+}
+jest.mock('../stateTracker', () => ({
+	StateTracker: class StateTracker {
+		isDeviceAhead = StateTrackerMock.isDeviceAhead
+		updateExpectedState = StateTrackerMock.updateExpectedState
+		getExpectedState = StateTrackerMock.getExpectedState
+		updateState = StateTrackerMock.updateState
+		getCurrentState = StateTrackerMock.getCurrentState
+		getAllAddresses = StateTrackerMock.getAllAddresses
+		clearState = StateTrackerMock.clearState
+	},
+}))
+const deviceTrackerMethodsImpl = {
+	applyAddressState: jest.fn(),
+	diffAddressStates: jest.fn(),
+	addressStateReassertsControl: jest.fn(() => true),
+}
+import { StateTracker } from '../stateTracker'
+
 describe('stateHandler', () => {
 	const mockTime = new MockTime()
 	beforeEach(() => {
@@ -40,14 +68,19 @@ describe('stateHandler', () => {
 		MOCK_COMMAND_RECEIVER.mockReset()
 	})
 
-	function getNewStateHandler(): StateHandler<DeviceState, CommandWithContext> {
+	function getNewStateHandler(withStateHandler = false): StateHandler<DeviceState, CommandWithContext> {
+		const trackerMethods = withStateHandler ? deviceTrackerMethodsImpl : {}
+
 		return new StateHandler<DeviceState, CommandWithContext>(
 			CONTEXT,
 			{
 				executionType: 'salvo',
 			},
 			{
-				convertTimelineStateToDeviceState: (s) => s.layers as unknown as DeviceState,
+				convertTimelineStateToDeviceState: (s) =>
+					withStateHandler
+						? { deviceState: s.layers as unknown as DeviceState, addressStates: s.layers }
+						: (s.layers as unknown as DeviceState),
 				diffStates: (o, n) =>
 					[
 						...Object.keys(n)
@@ -69,7 +102,9 @@ describe('stateHandler', () => {
 							})),
 					] as CommandWithContext[],
 				sendCommand: MOCK_COMMAND_RECEIVER,
-			}
+				...trackerMethods,
+			},
+			withStateHandler ? new StateTracker(diff) : undefined
 		)
 	}
 
@@ -84,9 +119,7 @@ describe('stateHandler', () => {
 				console.error('Error while setting current state', e)
 			})
 
-		stateHandler.handleState(createTimelineState(10000, {}), {}).catch((e) => {
-			console.error('Error while handling state', e)
-		})
+		await stateHandler.handleState(createTimelineState(10000, {}), {})
 
 		await mockTime.tick()
 
@@ -110,9 +143,7 @@ describe('stateHandler', () => {
 				console.error('Error while setting current state', e)
 			})
 
-		stateHandler.handleState(createTimelineState(10000, {}), {}).catch((e) => {
-			console.error('Error while handling state', e)
-		})
+		await stateHandler.handleState(createTimelineState(10000, {}), {})
 
 		await mockTime.tick()
 
@@ -124,16 +155,12 @@ describe('stateHandler', () => {
 			},
 		})
 
-		stateHandler
-			.handleState(
-				createTimelineState(10100, {
-					entry1: { value: true },
-				}),
-				{}
-			)
-			.catch((e) => {
-				console.error('Error while handling state', e)
-			})
+		await stateHandler.handleState(
+			createTimelineState(10100, {
+				entry1: { value: true },
+			}),
+			{}
+		)
 
 		await mockTime.tick()
 
@@ -161,22 +188,18 @@ describe('stateHandler', () => {
 			console.error('Error while setting current state', e)
 		})
 
-		stateHandler
-			.handleState(
-				createTimelineState(12000, {
-					entry1: {
-						value: true,
-						preliminary: 300,
-					},
-					entry2: {
-						value: true,
-					},
-				}),
-				{}
-			)
-			.catch((e) => {
-				console.error('Error while handling state', e)
-			})
+		await stateHandler.handleState(
+			createTimelineState(12000, {
+				entry1: {
+					value: true,
+					preliminary: 300,
+				},
+				entry2: {
+					value: true,
+				},
+			}),
+			{}
+		)
 
 		await mockTime.tick()
 
@@ -206,7 +229,6 @@ describe('stateHandler', () => {
 
 	test('ignore transitions to states older than current state', async () => {
 		const stateHandler = getNewStateHandler()
-
 		stateHandler
 			.setCurrentState({
 				entry1: { value: true },
@@ -214,10 +236,7 @@ describe('stateHandler', () => {
 			.catch((e) => {
 				console.error('Error while setting current state', e)
 			})
-
-		stateHandler.handleState(createTimelineState(10000, {}), {}).catch((e) => {
-			console.error('Error while handling state', e)
-		})
+		await stateHandler.handleState(createTimelineState(10000, {}), {})
 
 		await mockTime.tick()
 
@@ -229,19 +248,14 @@ describe('stateHandler', () => {
 			},
 		})
 
-		stateHandler
-			.handleState(
-				createTimelineState(10100, {
-					entry1: { value: true },
-				}),
-				{}
-			)
-			.catch((e) => {
-				console.error('Error while handling state', e)
-			})
+		await stateHandler.handleState(
+			createTimelineState(10100, {
+				entry1: { value: true },
+			}),
+			{}
+		)
 
 		await mockTime.tick()
-
 		// do not expect to be called because this is in the future
 		expect(MOCK_COMMAND_RECEIVER).toHaveBeenCalledTimes(1)
 
@@ -261,9 +275,7 @@ describe('stateHandler', () => {
 		//
 		MOCK_COMMAND_RECEIVER.mockReset()
 
-		stateHandler.handleState(createTimelineState(10000, {}), {}).catch((e) => {
-			console.error('Error while handling state', e)
-		})
+		await stateHandler.handleState(createTimelineState(10000, {}), {})
 
 		await mockTime.tick()
 
@@ -274,6 +286,30 @@ describe('stateHandler', () => {
 
 		// still no new commands to be received
 		expect(MOCK_COMMAND_RECEIVER).toHaveBeenCalledTimes(0)
+	})
+
+	test('Transition to a new state with tracker', async () => {
+		const stateHandler = getNewStateHandler(true)
+		stateHandler
+			.setCurrentState({
+				entry1: { value: true },
+			})
+			.catch((e) => {
+				console.error('Error while setting current state', e)
+			})
+		await stateHandler.handleState(
+			createTimelineState(10000, {
+				entry1: { value: true },
+			}),
+			{}
+		)
+
+		await mockTime.tick()
+		expect(StateTrackerMock.getAllAddresses).toHaveBeenCalled()
+		expect(StateTrackerMock.isDeviceAhead).toHaveBeenCalled()
+		expect(StateTrackerMock.getCurrentState).toHaveBeenCalled()
+		expect(StateTrackerMock.getExpectedState).toHaveBeenCalled()
+		expect(StateTrackerMock.updateExpectedState).toHaveBeenCalled()
 	})
 })
 

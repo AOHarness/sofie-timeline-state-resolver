@@ -18,6 +18,7 @@ exports[`index imports 1`] = `
   "Device",
   "DeviceContainer",
   "DeviceType",
+  "DevicesRegistry",
   "Direction",
   "DoOnTime",
   "Ease",
@@ -83,6 +84,7 @@ exports[`index imports 1`] = `
   "TimelineContentTypeTriCaster",
   "TimelineContentTypeVMix",
   "TimelineContentTypeVizMSE",
+  "TimelineContentTypeWebSocketClient",
   "Transition",
   "TranslationsBundleType",
   "TransportStatus",
@@ -95,6 +97,9 @@ exports[`index imports 1`] = `
   "VizMSEActions",
   "VizMSEDevice",
   "VmixActions",
-  "manifest",
+  "WebsocketClientActions",
+  "fillStateFromDatastore",
+  "interpolateTemplateString",
+  "interpolateTemplateStringIfNeeded",
 ]
 `;

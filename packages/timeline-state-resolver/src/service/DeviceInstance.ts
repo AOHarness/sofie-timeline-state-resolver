@@ -1,5 +1,13 @@
 import EventEmitter = require('eventemitter3')
-import { actionNotFoundMessage, FinishedTrace } from '../lib'
+import { actionNotFoundMessage } from '../lib'
+import type {
+	FinishedTrace,
+	DeviceEntry,
+	Device,
+	CommandWithContext,
+	DeviceContextAPI,
+	DeviceEvents,
+} from 'timeline-state-resolver-api'
 import {
 	type DeviceStatus,
 	type DeviceType,
@@ -8,14 +16,15 @@ import {
 	type Timeline,
 	type TSRTimelineContent,
 } from 'timeline-state-resolver-types'
-import type { CommandWithContext, Device, DeviceContextAPI, DeviceEvents } from './device'
 import { StateHandler } from './stateHandler'
-import { DeviceEntry, DevicesDict } from './devices'
-import type { DeviceOptionsAnyInternal, ExpectedPlayoutItem } from '..'
+import { DevicesDict } from './devices'
+import type { DeviceOptionsAny, ExpectedPlayoutItem } from '..'
 import type { StateChangeReport } from './measure'
+import { StateTracker } from './stateTracker'
 
-type Config = DeviceOptionsAnyInternal
+type Config = DeviceOptionsAny
 type DeviceState = any
+type AddressState = any
 
 export interface DeviceDetails {
 	deviceId: string
@@ -33,12 +42,38 @@ export interface DeviceInstanceEvents extends Omit<DeviceEvents, 'connectionChan
 	connectionChanged: [status: DeviceStatus]
 }
 
+// Future: it would be nice for this to be async, so that we can support proper ESM, but that isnt compatible with calling this in the constructor.
+function loadDeviceIntegration(pluginPath: string | null, deviceType: DeviceType): DeviceEntry | undefined {
+	if (!pluginPath) {
+		// No pluginPath means this is a builtin
+		return DevicesDict[deviceType]
+	}
+
+	try {
+		// eslint-disable-next-line @typescript-eslint/no-var-requires
+		const plugin = require(pluginPath)
+
+		const pluginDevices = plugin.Devices
+		if (!pluginDevices || typeof pluginDevices !== 'object')
+			throw new Error(`Plugin at path "${pluginPath}" does not export a Devices object`)
+
+		const deviceSpecs = pluginDevices[deviceType]
+		if (deviceSpecs) return deviceSpecs
+	} catch (e) {
+		console.warn(`Error loading device integrations from: ${pluginPath}`, e)
+	}
+
+	return undefined
+}
+
 /**
  * Top level container for setting up and interacting with any device integrations
  */
 export class DeviceInstanceWrapper extends EventEmitter<DeviceInstanceEvents> {
-	private _device: Device<any, DeviceState, CommandWithContext>
-	private _stateHandler: StateHandler<DeviceState, CommandWithContext>
+	private _device: Device<any, DeviceState, CommandWithContext<any, any>>
+	private _stateHandler: StateHandler<DeviceState, CommandWithContext<any, any>, AddressState>
+	private _deviceSpecs: DeviceEntry
+	private _stateTracker?: StateTracker<AddressState>
 
 	private _deviceId: string
 	private _deviceType: DeviceType
@@ -53,15 +88,21 @@ export class DeviceInstanceWrapper extends EventEmitter<DeviceInstanceEvents> {
 	private _lastUpdateCurrentTime: number | undefined
 	private _tDiff: number | undefined
 
-	constructor(id: string, time: number, private config: Config, private getRemoteCurrentTime: () => Promise<number>) {
+	constructor(
+		id: string,
+		time: number,
+		pluginPath: string | null,
+		private config: Config,
+		private getRemoteCurrentTime: () => Promise<number>
+	) {
 		super()
 
-		const deviceSpecs: DeviceEntry = DevicesDict[config.type]
-
+		const deviceSpecs = loadDeviceIntegration(pluginPath, config.type)
 		if (!deviceSpecs) {
 			throw new Error('Could not find device of type ' + config.type)
 		}
 
+		this._deviceSpecs = deviceSpecs
 		this._device = new deviceSpecs.deviceClass(this._getDeviceContextAPI())
 		this._deviceId = id
 		this._deviceType = config.type
@@ -70,6 +111,27 @@ export class DeviceInstanceWrapper extends EventEmitter<DeviceInstanceEvents> {
 		this._startTime = time
 
 		this._updateTimeSync()
+
+		if (!config.disableSharedHardwareControl && this._device.diffAddressStates && this._device.applyAddressState) {
+			this._stateTracker = new StateTracker((state1, state2) =>
+				this._device.diffAddressStates ? this._device.diffAddressStates(state1, state2) : false
+			)
+
+			// for now we just do some logging but in the future we could inform library users so they can react to a device changing
+			this._stateTracker.on('deviceAhead', (a) => {
+				this.emit('debug', 'Device ahead for: ' + a)
+			})
+			this._stateTracker.on('deviceUnderControl', (a) => {
+				this.emit('debug', 'Reasserted control over device for: ' + a)
+			})
+
+			// make sure the commands for the next state change are correct:
+			this._stateTracker.on('deviceUpdated', (ahead) => {
+				if (ahead) {
+					this._stateHandler.recalcDiff()
+				}
+			})
+		}
 
 		this._stateHandler = new StateHandler(
 			{
@@ -124,7 +186,8 @@ export class DeviceInstanceWrapper extends EventEmitter<DeviceInstanceEvents> {
 			{
 				executionType: deviceSpecs.executionMode(config.options),
 			},
-			this._device
+			this._device,
+			this._stateTracker
 		)
 	}
 
@@ -136,23 +199,14 @@ export class DeviceInstanceWrapper extends EventEmitter<DeviceInstanceEvents> {
 		return this._device.terminate()
 	}
 
-	async executeAction(id: string, payload?: Record<string, any>) {
-		const action = this._device.actions[id]
+	async executeAction(id: string, payload: Record<string, any>) {
+		const action = this._device.actions?.[id]
 
 		if (!action) {
 			return actionNotFoundMessage(id as never)
 		}
 
-		return action(id, payload)
-	}
-
-	async makeReady(okToDestroyStuff?: boolean): Promise<void> {
-		return this._device.makeReady(okToDestroyStuff)
-	}
-	async standDown(): Promise<void> {
-		if (this._device.standDown) {
-			return this._device.standDown()
-		}
+		return action(payload)
 	}
 
 	/** @deprecated - just here for API compatiblity with the old class */
@@ -181,7 +235,7 @@ export class DeviceInstanceWrapper extends EventEmitter<DeviceInstanceEvents> {
 			startTime: this._startTime,
 
 			supportsExpectedPlayoutItems: false,
-			canConnect: DevicesDict[this.config.type].canConnect,
+			canConnect: this._deviceSpecs.canConnect,
 		}
 	}
 
@@ -247,7 +301,7 @@ export class DeviceInstanceWrapper extends EventEmitter<DeviceInstanceEvents> {
 				this.emit('resetResolver')
 			},
 
-			commandError: (error: Error, context: CommandWithContext) => {
+			commandError: (error: Error, context: CommandWithContext<any, any>) => {
 				this.emit('commandError', error, context)
 			},
 			updateMediaObject: (collectionId: string, docId: string, doc: MediaObject | null) => {
@@ -271,6 +325,14 @@ export class DeviceInstanceWrapper extends EventEmitter<DeviceInstanceEvents> {
 				await this._stateHandler.setCurrentState(state)
 				await this._stateHandler.clearFutureStates()
 				this.emit('resyncStates')
+			},
+
+			recalcDiff: () => {
+				this._stateHandler.recalcDiff()
+			},
+
+			setAddressState: (address, state) => {
+				this._stateTracker?.updateState(address, state)
 			},
 		}
 	}

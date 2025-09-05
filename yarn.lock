@@ -2012,17 +2012,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/node@npm:*":
-  version: 20.2.0
-  resolution: "@types/node@npm:20.2.0"
-  checksum: 9b937367448a07482af14e3518125ae531bff99e16d51e0945f4f93dbd7051d8a270811bdeb57f0b52c629fb0c9c401a238a7352dfbc87e26495b6f0f59cbdb6
-  languageName: node
-  linkType: hard
-
-"@types/node@npm:^16.18.105":
-  version: 16.18.105
-  resolution: "@types/node@npm:16.18.105"
-  checksum: d4ee65479dceea89b660fe50c2508060c17c61f4128d2227c2852b04ca6b5587a200ae55b3eb0d0306ba256619d3ea9d6eb54e250086be8e93d8037f17b0a772
+"@types/node@npm:*, @types/node@npm:^20.19.10":
+  version: 20.19.10
+  resolution: "@types/node@npm:20.19.10"
+  dependencies:
+    undici-types: "npm:~6.21.0"
+  checksum: e294ec0d37ce5a1ae9e4c255ef837b584d793a4d2f89472d580024a4c008de0d5df595c919e96e95fcdf56bf55d567213f90c0c5874b369a30526bedfaa3f418
   languageName: node
   linkType: hard
 
@@ -4349,9 +4344,9 @@ asn1@evs-broadcast/node-asn1:
   languageName: node
   linkType: hard
 
-"emberplus-connection@npm:^0.2.2":
-  version: 0.2.2
-  resolution: "emberplus-connection@npm:0.2.2"
+"emberplus-connection@npm:^0.3.0":
+  version: 0.3.0
+  resolution: "emberplus-connection@npm:0.3.0"
   dependencies:
     asn1: evs-broadcast/node-asn1
     debug: ^4.3.4
@@ -4359,7 +4354,7 @@ asn1@evs-broadcast/node-asn1:
     long: ^3.2.0
     smart-buffer: ^3.0.3
     tslib: ^2.6.2
-  checksum: ee420ae740ebc807900481f86df90560f6717d7ce074c6c1232b3f61d6447896c5bac1ed80fa73cb1b82b5583996f02339a5ba2b13e69ad272fdec886a1f9344
+  checksum: 439e246d2158eca481bcf1084a56c00ff2cda90c1954ba070eaefbb16ce6648f3abf55148668def7ee7c1404f473fd1ee74d22e0d6c47a354fa3b4790469c1b7
   languageName: node
   linkType: hard
 
@@ -9856,7 +9851,8 @@ asn1@evs-broadcast/node-asn1:
     chokidar: ^3.6.0
     fast-clone: ^1.5.13
     threadedclass: ^1.2.2
-    timeline-state-resolver: 9.3.1
+    timeline-state-resolver: 9.4.0-release53
+    timeline-state-resolver-types: 9.4.0-release53
     tslib: ^2.6.3
     underscore: ^1.13.7
   languageName: unknown
@@ -11270,6 +11266,16 @@ asn1@evs-broadcast/node-asn1:
   languageName: node
   linkType: hard
 
+"timeline-state-resolver-api@9.4.0-release53, timeline-state-resolver-api@workspace:packages/timeline-state-resolver-api":
+  version: 0.0.0-use.local
+  resolution: "timeline-state-resolver-api@workspace:packages/timeline-state-resolver-api"
+  dependencies:
+    tslib: ^2.6.3
+  peerDependencies:
+    timeline-state-resolver-types: 9.4.0-release53
+  languageName: unknown
+  linkType: soft
+
 "timeline-state-resolver-packages@workspace:.":
   version: 0.0.0-use.local
   resolution: "timeline-state-resolver-packages@workspace:."
@@ -11277,7 +11283,7 @@ asn1@evs-broadcast/node-asn1:
     "@sofie-automation/code-standard-preset": ~2.5.2
     "@types/debug": ^4.1.12
     "@types/jest": ^29.5.12
-    "@types/node": ^16.18.105
+    "@types/node": ^20.19.10
     "@types/sprintf-js": ^1.1.4
     "@types/underscore": ^1.11.15
     "@types/ws": ^8.5.12
@@ -11294,7 +11300,25 @@ asn1@evs-broadcast/node-asn1:
   languageName: unknown
   linkType: soft
 
-"timeline-state-resolver-types@9.3.1, timeline-state-resolver-types@workspace:packages/timeline-state-resolver-types":
+"timeline-state-resolver-tools@9.4.0-release53, timeline-state-resolver-tools@workspace:packages/timeline-state-resolver-tools":
+  version: 0.0.0-use.local
+  resolution: "timeline-state-resolver-tools@workspace:packages/timeline-state-resolver-tools"
+  dependencies:
+    i18next-conv: ^13.1.1
+    i18next-parser: ^6.6.0
+    json-schema-ref-parser: ^9.0.9
+    json-schema-to-typescript: ^10.1.5
+    meow: ^11.0.0
+    vinyl-fs: ^3.0.3
+  bin:
+    tsr-bundle-translations: bin/bundle-translations.mjs
+    tsr-extract-translations: bin/extract-translations.mjs
+    tsr-schema-deref: bin/schema-deref.mjs
+    tsr-schema-types: bin/schema-types.mjs
+  languageName: unknown
+  linkType: soft
+
+"timeline-state-resolver-types@9.4.0-release53, timeline-state-resolver-types@workspace:packages/timeline-state-resolver-types":
   version: 0.0.0-use.local
   resolution: "timeline-state-resolver-types@workspace:packages/timeline-state-resolver-types"
   dependencies:
@@ -11302,7 +11326,7 @@ asn1@evs-broadcast/node-asn1:
   languageName: unknown
   linkType: soft
 
-"timeline-state-resolver@9.3.1, timeline-state-resolver@workspace:packages/timeline-state-resolver":
+"timeline-state-resolver@9.4.0-release53, timeline-state-resolver@workspace:packages/timeline-state-resolver":
   version: 0.0.0-use.local
   resolution: "timeline-state-resolver@workspace:packages/timeline-state-resolver"
   dependencies:
@@ -11315,33 +11339,30 @@ asn1@evs-broadcast/node-asn1:
     casparcg-state: 3.0.3
     debug: ^4.3.6
     deepmerge: ^4.3.1
-    emberplus-connection: ^0.2.2
+    emberplus-connection: ^0.3.0
     eventemitter3: ^4.0.7
     got: ^11.8.6
     hpagent: ^1.2.0
     hyperdeck-connection: 2.0.1
-    i18next-conv: ^13.1.1
-    i18next-parser: ^6.6.0
     jest-mock-extended: ^3.0.7
-    json-schema-ref-parser: ^9.0.9
     json-schema-to-typescript: ^10.1.5
     klona: ^2.0.6
     obs-websocket-js: ^5.0.6
     osc: ^2.4.5
     p-all: ^3.0.0
     p-queue: ^6.6.2
-    p-timeout: ^3.2.0
     simple-oauth2: ^5.1.0
     sprintf-js: ^1.1.3
     superfly-timeline: ^9.1.2
     threadedclass: ^1.2.2
-    timeline-state-resolver-types: 9.3.1
+    timeline-state-resolver-api: 9.4.0-release53
+    timeline-state-resolver-tools: 9.4.0-release53
+    timeline-state-resolver-types: 9.4.0-release53
     tslib: ^2.6.3
     tv-automation-quantel-gateway-client: ^3.1.7
     type-fest: ^3.13.1
     underscore: ^1.13.7
     utf-8-validate: ^6.0.4
-    vinyl-fs: ^3.0.3
     ws: ^8.18.0
     xml-js: ^1.6.11
   languageName: unknown
@@ -11783,6 +11804,13 @@ asn1@evs-broadcast/node-asn1:
   version: 1.13.7
   resolution: "underscore@npm:1.13.7"
   checksum: 174b011af29e4fbe2c70eb2baa8bfab0d0336cf2f5654f364484967bc6264a86224d0134b9176e4235c8cceae00d11839f0fd4824268de04b11c78aca1241684
+  languageName: node
+  linkType: hard
+
+"undici-types@npm:~6.21.0":
+  version: 6.21.0
+  resolution: "undici-types@npm:6.21.0"
+  checksum: 46331c7d6016bf85b3e8f20c159d62f5ae471aba1eb3dc52fff35a0259d58dcc7d592d4cc4f00c5f9243fa738a11cfa48bd20203040d4a9e6bc25e807fab7ab3
   languageName: node
   linkType: hard
 

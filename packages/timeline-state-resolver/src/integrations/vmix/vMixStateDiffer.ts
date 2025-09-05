@@ -8,6 +8,7 @@ import {
 	VMixLayer,
 	VMixText,
 	VMixImages,
+	MappingVmixAudioBus,
 } from 'timeline-state-resolver-types'
 import { CommandContext, VMixStateCommandWithContext } from './vMixCommands'
 import _ = require('underscore')
@@ -44,7 +45,7 @@ export interface VMixState {
 	playlist: boolean
 	multiCorder: boolean
 	fullscreen: boolean
-	audio: VMixAudioChannel[]
+	audioBuses: VMixAudioBusesState
 }
 
 interface VMixOutputsState {
@@ -58,6 +59,10 @@ interface VMixOutputsState {
 	Fullscreen2: VMixOutput | undefined
 }
 
+export type VMixAudioBusesState = {
+	M: VMixAudioBusBase | undefined
+} & Record<'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G', VMixAudioBusBase | undefined>
+
 export interface VMixMix {
 	number: number
 	program: string | number | undefined
@@ -67,8 +72,11 @@ export interface VMixMix {
 }
 
 export interface VMixInput {
+	key?: string
 	number?: number
 	type?: VMixInputType | string
+	title?: string
+	shortTitle?: string
 	name?: string
 	filePath?: string
 	state?: 'Paused' | 'Running' | 'Completed'
@@ -93,8 +101,19 @@ export interface VMixInputAudio {
 	balance?: number
 	fade?: number
 	solo?: boolean
+	soloPFL?: boolean
 	audioBuses?: string
 	audioAuto?: boolean
+	meterF1?: number
+	meterF2?: number
+	gainDb?: number
+}
+
+export interface VMixInputCall {
+	callPassword?: number
+	callConnected?: boolean
+	callVideoSource?: 'Output1' | 'Output2' | 'Output3' | 'Output4' | 'None'
+	callAudioSource?: 'BusA' | 'BusB' | 'BusC' | 'BusD' | 'BusE' | 'BusF' | 'BusG' | 'Master' | 'Headphones'
 }
 
 export interface VMixOutput {
@@ -107,11 +126,17 @@ export interface VMixOverlay {
 	input: string | number | undefined
 }
 
-export interface VMixAudioChannel {
+export interface VMixAudioBusBase {
 	volume: number
 	muted: boolean
-	meterF1: number
-	meterF2: number
+}
+
+export interface VMixAudioRegularBus extends VMixAudioBusBase {
+	solo: boolean
+	sendToMaster: boolean
+}
+
+export interface VMixAudioMasterBus extends VMixAudioBusBase {
 	headphonesVolume: number
 }
 
@@ -120,7 +145,15 @@ interface PreAndPostTransitionCommands {
 	postTransitionCommands: Array<VMixStateCommandWithContext>
 }
 
-export class VMixStateDiffer {
+export interface VMixDefaultStateFactory {
+	getDefaultState: () => VMixStateExtended
+	getDefaultInputState: (inputIndex: number | string | undefined) => VMixInput
+	getDefaultInputAudioState: (inputIndex: number | string | undefined) => VMixInputAudio
+	getDefaultInputCallState: (inputIndex: number | string | undefined) => VMixInputCall
+	getDefaultAudioBusState: () => VMixAudioBusBase
+}
+
+export class VMixStateDiffer implements VMixDefaultStateFactory {
 	private inputHandler: VMixInputHandler
 
 	constructor(
@@ -142,6 +175,7 @@ export class VMixStateDiffer {
 		commands = commands.concat(this._resolveOverlaysState(oldVMixState, newVMixState))
 		commands = commands.concat(inputCommands.postTransitionCommands)
 		commands = commands.concat(this._resolveInputsAudioState(oldVMixState, newVMixState))
+		commands = commands.concat(this._resolveAudioBusesState(oldVMixState.reportedState, newVMixState.reportedState))
 		commands = commands.concat(this._resolveRecordingState(oldVMixState.reportedState, newVMixState.reportedState))
 		commands = commands.concat(this._resolveStreamingState(oldVMixState.reportedState, newVMixState.reportedState))
 		commands = commands.concat(this._resolveExternalState(oldVMixState.reportedState, newVMixState.reportedState))
@@ -173,7 +207,16 @@ export class VMixStateDiffer {
 				playlist: false,
 				multiCorder: false,
 				fullscreen: false,
-				audio: [],
+				audioBuses: {
+					M: undefined,
+					A: undefined,
+					B: undefined,
+					C: undefined,
+					D: undefined,
+					E: undefined,
+					F: undefined,
+					G: undefined,
+				},
 			},
 			outputs: {
 				'2': undefined,
@@ -211,8 +254,20 @@ export class VMixStateDiffer {
 			volume: 100,
 			balance: 0,
 			fade: 0,
+			solo: false,
+			soloPFL: false,
 			audioBuses: 'M',
 			audioAuto: true,
+			meterF1: 0,
+			meterF2: 0,
+			gainDb: 0,
+		}
+	}
+
+	getDefaultAudioBusState(): VMixAudioBusBase {
+		return {
+			muted: true,
+			volume: 100,
 		}
 	}
 
@@ -797,6 +852,52 @@ export class VMixStateDiffer {
 				this.inputHandler.removeInput(time, input)
 			}
 		)
+		return commands
+	}
+
+	private _resolveAudioBusesState(
+		oldVMixState: VMixState,
+		newVMixState: VMixState
+	): Array<VMixStateCommandWithContext> {
+		const commands: Array<VMixStateCommandWithContext> = []
+		for (const [index, bus] of Object.entries<VMixAudioBusBase | undefined>(newVMixState.audioBuses)) {
+			const busName = index as MappingVmixAudioBus['index']
+			if (!bus) continue
+			const oldBus = oldVMixState.audioBuses[index as keyof VMixAudioBusesState]
+			// probably makes sense to do this before updating volume:
+			if (bus.muted && oldBus?.muted !== bus.muted) {
+				commands.push({
+					command: {
+						command: VMixCommand.BUS_AUDIO_OFF,
+						bus: busName,
+					},
+					context: CommandContext.None,
+					timelineId: '',
+				})
+			}
+			if (oldBus?.volume !== bus.volume) {
+				commands.push({
+					command: {
+						command: VMixCommand.BUS_VOLUME,
+						bus: busName,
+						value: bus.volume,
+					},
+					context: CommandContext.None,
+					timelineId: '',
+				})
+			}
+			// probably makes sense to do this after updating volume:
+			if (!bus.muted && oldBus?.muted !== bus.muted) {
+				commands.push({
+					command: {
+						command: VMixCommand.BUS_AUDIO_ON,
+						bus: busName,
+					},
+					context: CommandContext.None,
+					timelineId: '',
+				})
+			}
+		}
 		return commands
 	}
 

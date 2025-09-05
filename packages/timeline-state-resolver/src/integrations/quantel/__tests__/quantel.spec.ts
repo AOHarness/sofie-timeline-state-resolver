@@ -1455,7 +1455,7 @@ describe('Quantel Device', () => {
 			reportStateChangeMeasurement: () => null,
 			getCurrentTime: () => Date.now(),
 		}
-		function getNewStateHandler(device: QuantelDevice): StateHandler<QuantelState, CommandWithContext> {
+		function getNewStateHandler(device: QuantelDevice): StateHandler<QuantelState, CommandWithContext<any, any>> {
 			// eslint-disable-next-line @typescript-eslint/unbound-method
 			const orgSendCommand = device.sendCommand
 			device.sendCommand = async function mockFunction(...args) {
@@ -1464,7 +1464,7 @@ describe('Quantel Device', () => {
 			}
 
 			const deviceSpecs = DevicesDict[DeviceType.QUANTEL]
-			return new StateHandler<QuantelState, CommandWithContext>(
+			return new StateHandler<QuantelState, CommandWithContext<any, any>>(
 				CONTEXT,
 				{
 					executionType: deviceSpecs.executionMode({}),

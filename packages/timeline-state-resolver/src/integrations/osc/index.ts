@@ -1,17 +1,17 @@
 import {
-	ActionExecutionResult,
 	DeviceStatus,
 	DeviceType,
 	OSCDeviceType,
+	OscDeviceTypes,
 	OSCMessageCommandContent,
-	OSCOptions,
+	OscOptions,
 	OSCValueType,
 	SomeOSCValue,
 	StatusCode,
 	Timeline,
 	TSRTimelineContent,
 } from 'timeline-state-resolver-types'
-import { CommandWithContext, Device } from '../../service/device'
+import type { Device, CommandWithContext, DeviceContextAPI } from 'timeline-state-resolver-api'
 import * as osc from 'osc'
 
 import Debug from 'debug'
@@ -27,11 +27,9 @@ interface OSCDeviceStateContent extends OSCMessageCommandContent {
 	fromTlObject: string
 }
 
-export interface OscCommandWithContext extends CommandWithContext {
-	command: OSCDeviceStateContent
-}
+export type OscCommandWithContext = CommandWithContext<OSCDeviceStateContent, string>
 
-export class OscDevice extends Device<OSCOptions, OscDeviceState, OscCommandWithContext> {
+export class OscDevice implements Device<OscDeviceTypes, OscDeviceState, OscCommandWithContext> {
 	/** Setup in init */
 	private _oscClient!: osc.UDPPort | osc.TCPSocketPort
 	private _oscClientStatus: 'connected' | 'disconnected' = 'disconnected'
@@ -40,10 +38,14 @@ export class OscDevice extends Device<OSCOptions, OscDeviceState, OscCommandWith
 			started: number
 		} & OSCMessageCommandContent
 	} = {}
-	private transitionInterval: NodeJS.Timer | undefined
-	private options: OSCOptions | undefined
+	private transitionInterval: NodeJS.Timeout | undefined
+	private options: OscOptions | undefined
 
-	async init(options: OSCOptions): Promise<boolean> {
+	constructor(protected context: DeviceContextAPI<OscDeviceState>) {
+		// Nothing
+	}
+
+	async init(options: OscOptions): Promise<boolean> {
 		this.options = options
 		if (options.type === OSCDeviceType.TCP) {
 			debug('Creating TCP OSC device')
@@ -154,13 +156,9 @@ export class OscDevice extends Device<OSCOptions, OscDeviceState, OscCommandWith
 		})
 		return commands
 	}
-	async sendCommand({ command, context, timelineObjId }: OscCommandWithContext): Promise<any> {
-		const cwc: CommandWithContext = {
-			context: context,
-			command: command,
-			timelineObjId,
-		}
+	async sendCommand(cwc: OscCommandWithContext): Promise<any> {
 		this.context.logger.debug(cwc)
+		const { command } = cwc
 		debug(command)
 
 		try {
@@ -221,7 +219,7 @@ export class OscDevice extends Device<OSCOptions, OscDeviceState, OscCommandWith
 		}
 	}
 
-	readonly actions: Record<string, (id: string, payload?: Record<string, any>) => Promise<ActionExecutionResult>> = {}
+	readonly actions = null
 
 	private _oscSender(msg: osc.OscMessage, address?: string | undefined, port?: number | undefined): void {
 		this.context.logger.debug('sending ' + msg.address)

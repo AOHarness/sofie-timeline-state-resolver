@@ -1,6 +1,6 @@
 import { OscDevice } from '../integrations/osc'
 import { DeviceType } from 'timeline-state-resolver-types'
-import { Device, DeviceContextAPI } from './device'
+import type { DeviceEntry } from 'timeline-state-resolver-api'
 import { AuthenticatedHTTPSendDevice } from '../integrations/httpSend/AuthenticatedHTTPSendDevice'
 import { ShotokuDevice } from '../integrations/shotoku'
 import { HTTPWatcherDevice } from '../integrations/httpWatcher'
@@ -19,13 +19,7 @@ import { TelemetricsDevice } from '../integrations/telemetrics'
 import { TriCasterDevice } from '../integrations/tricaster'
 import { SingularLiveDevice } from '../integrations/singularLive'
 import { MultiOSCMessageDevice } from '../integrations/multiOsc'
-
-export interface DeviceEntry {
-	deviceClass: new (context: DeviceContextAPI<any>) => Device<any, any, any>
-	canConnect: boolean
-	deviceName: (deviceId: string, options: any) => string
-	executionMode: (options: any) => 'salvo' | 'sequential'
-}
+import { WebSocketClientDevice } from '../integrations/websocketClient'
 
 export type ImplementedServiceDeviceTypes =
 	| DeviceType.ABSTRACT
@@ -47,6 +41,7 @@ export type ImplementedServiceDeviceTypes =
 	| DeviceType.TRICASTER
 	| DeviceType.QUANTEL
 	| DeviceType.VISCA_OVER_IP
+	| DeviceType.WEBSOCKET_CLIENT
 
 // TODO - move all device implementations here and remove the old Device classes
 export const DevicesDict: Record<ImplementedServiceDeviceTypes, DeviceEntry> = {
@@ -162,6 +157,12 @@ export const DevicesDict: Record<ImplementedServiceDeviceTypes, DeviceEntry> = {
 		deviceClass: ViscaOverIpDevice,
 		canConnect: false,
 		deviceName: (deviceId: string) => 'VISCAOverIP ' + deviceId,
+		executionMode: () => 'sequential',
+	},
+	[DeviceType.WEBSOCKET_CLIENT]: {
+		deviceClass: WebSocketClientDevice,
+		canConnect: true,
+		deviceName: (deviceId: string) => 'WebSocket Client ' + deviceId,
 		executionMode: () => 'sequential',
 	},
 }

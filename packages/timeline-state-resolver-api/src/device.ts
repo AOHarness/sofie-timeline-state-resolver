@@ -1,19 +1,30 @@
-import { SlowSentCommandInfo, SlowFulfilledCommandInfo, CommandReport } from '../'
-import { FinishedTrace } from '../lib'
-import {
+import type { SlowSentCommandInfo, SlowFulfilledCommandInfo, CommandReport } from './commandReport'
+import type { FinishedTrace } from './trace'
+import type {
 	Timeline,
 	TSRTimelineContent,
 	Mappings,
 	DeviceStatus,
-	ActionExecutionResult,
 	MediaObject,
+	Mapping,
 } from 'timeline-state-resolver-types'
 
-type CommandContext = any
-
-export type CommandWithContext = {
-	command: any
-	context: CommandContext
+/**
+ * The intended usage of this is for each device to define an alias with the generic types provided.
+ * Like so:
+ * export interface MyDeviceCommand {
+ *   // device specific properties here
+ * }
+ * export type MyDeviceCommandWithContext = CommandWithContext<MyDeviceCommand, string>
+ */
+export type CommandWithContext<TCommand, TContext> = {
+	/** Device specific command (to be defined by the device itself) */
+	command: TCommand
+	/**
+	 * The context is provided for logging / troubleshooting reasons.
+	 * It should contain some kind of explanation as to WHY a command was created (like a reference, path etc.)
+	 */
+	context: TContext
 	/** ID of the timeline-object that the command originated from */
 	timelineObjId: string
 	/** this command is to be executed x ms _before_ the scheduled time */
@@ -25,72 +36,94 @@ export type CommandWithContext = {
 /**
  * API for use by the DeviceInstance to be able to use a device
  */
-export abstract class Device<DeviceOptions, DeviceState, Command extends CommandWithContext>
-	implements BaseDeviceAPI<DeviceState, Command>
-{
-	constructor(protected context: DeviceContextAPI<DeviceState>) {
-		// Nothing
-	}
+export interface Device<
+	DeviceTypes extends { Options: any; Mappings: any; Actions: Record<string, any> | null },
+	DeviceState,
+	Command extends CommandWithContext<any, any>,
+	AddressState = void
+> extends BaseDeviceAPI<DeviceState, AddressState, Command> {
+	readonly actions: DeviceTypes['Actions']
+
 	/**
 	 * Initiates the device connection, after this has resolved the device
 	 * is ready to be controlled
 	 */
-	abstract init(options: DeviceOptions): Promise<boolean>
+	init(options: DeviceTypes['Options']): Promise<boolean>
 	/**
 	 * Ready this class for garbage collection
 	 */
-	abstract terminate(): Promise<void>
+	terminate(): Promise<void>
 
-	/** @deprecated */
-	async makeReady(_okToDestroyStuff?: boolean): Promise<void> {
-		// Do nothing by default
-	}
-	/** @deprecated */
-	async standDown(): Promise<void> {
-		// Do nothing by default
-	}
-
-	abstract get connected(): boolean
-	abstract getStatus(): Omit<DeviceStatus, 'active'>
-
-	abstract actions: Record<string, (id: string, payload?: Record<string, any>) => Promise<ActionExecutionResult>>
+	get connected(): boolean
+	getStatus(): Omit<DeviceStatus, 'active'>
 
 	// todo - add media objects
 
 	// From BaseDeviceAPI: -----------------------------------------------
-	abstract convertTimelineStateToDeviceState(
+	convertTimelineStateToDeviceState(
 		state: Timeline.TimelineState<TSRTimelineContent>,
-		newMappings: Mappings
-	): DeviceState
-	abstract diffStates(
+		newMappings: Record<string, Mapping<DeviceTypes['Mappings']>>
+	): DeviceState | { deviceState: DeviceState; addressStates: Record<string, AddressState> }
+	diffStates(
 		oldState: DeviceState | undefined,
 		newState: DeviceState,
-		mappings: Mappings,
+		mappings: Record<string, Mapping<DeviceTypes['Mappings']>>,
 		time: number
 	): Array<Command>
-	abstract sendCommand(command: Command): Promise<void>
+	sendCommand(command: Command): Promise<void>
+
+	applyAddressState?(state: DeviceState, address: string, addressState: AddressState): void
+	diffAddressStates?(state1: AddressState, state2: AddressState): boolean
+	addressStateReassertsControl?(oldState: AddressState | undefined, newState: AddressState): boolean
 	// -------------------------------------------------------------------
 }
 
 /**
  * Minimal API for the StateHandler to be able to use a device
  */
-export interface BaseDeviceAPI<DeviceState, Command extends CommandWithContext> {
+export interface BaseDeviceAPI<DeviceState, AddressState, Command extends CommandWithContext<any, any>> {
 	/**
 	 * This method takes in a Timeline State that describes a point
-	 * in time on the timeline and returns a decice state that
-	 * describes how the device should be according to the timeline state
-	 *
+	 * in time on the timeline and converts it into a "device state" that
+	 * describes how the device should be according to the timeline state.
+	 * Transforming the DeviceState to something else is optional, and are intended to simplify diffing logic.
+	 * The order of TSR is:
+	 * - Timeline Object in Timeline State ->
+	 * - Device State (`convertTimelineStateToDeviceState()`) ->
+	 * - Planned Device Commands (`difStates()`) ->
+	 * - Send Command (`sendCommand()`)
 	 * @param state State obj from timeline
 	 * @param newMappings Mappings to resolve devices with
+	 * @returns Device state (that is fed into `diffStates()` )
 	 */
 	convertTimelineStateToDeviceState(
 		state: Timeline.TimelineState<TSRTimelineContent>,
 		newMappings: Mappings
-	): DeviceState
+	): DeviceState | { deviceState: DeviceState; addressStates: Record<string, AddressState> }
+
 	/**
-	 * This method takes 2 states and returns a set of commands that will
-	 * transition the device from oldState to newState
+	 * The implementation of this method should apply the state from an address to a device
+	 * state in place
+	 * @param state the state object from convertTimelineToDeviceState
+	 * @param address The address of the state to be applied
+	 * @param addressState The state to be applied
+	 */
+	applyAddressState?(state: DeviceState, address: string, addressState: AddressState): void
+	/**
+	 * The implementation should return true if the contents of the address state differ,
+	 * but not if only the control value differs
+	 */
+	diffAddressStates?(state1: AddressState, state2: AddressState): boolean
+	/**
+	 * Returns true if the
+	 */
+	addressStateReassertsControl?(oldState: AddressState | undefined, newState: AddressState): boolean
+	/**
+	 * This method takes 2 states and returns a set of device-commands that will
+	 * transition the device from oldState to newState.
+	 *
+	 * This is basically the place where we generate the planned commands for the device,
+	 * to be executed later, by `sendCommand()`.
 	 */
 	diffStates(
 		oldState: DeviceState | undefined,
@@ -125,7 +158,7 @@ export interface DeviceEvents {
 	commandReport: [commandReport: CommandReport]
 
 	/** Something went wrong when executing a command  */
-	commandError: [error: Error, context: CommandWithContext]
+	commandError: [error: Error, context: CommandWithContext<any, any>]
 	/** Update a MediaObject  */
 	updateMediaObject: [collectionId: string, docId: string, doc: MediaObject | null]
 	/** Clear a MediaObjects collection */
@@ -135,7 +168,7 @@ export interface DeviceEvents {
 }
 
 /** Various methods that the Devices can call */
-export interface DeviceContextAPI<DeviceState> {
+export interface DeviceContextAPI<DeviceState, AddressState = void> {
 	logger: {
 		/** Emit a "error" message */
 		error: (context: string, err: Error) => void
@@ -162,7 +195,7 @@ export interface DeviceContextAPI<DeviceState> {
 	resetResolver: () => void
 
 	/** Something went wrong when executing a command  */
-	commandError: (error: Error, context: CommandWithContext) => void
+	commandError: (error: Error, context: CommandWithContext<any, any>) => void
 	/** Update a MediaObject  */
 	updateMediaObject: (collectionId: string, docId: string, doc: MediaObject | null) => void
 	/** Clear a MediaObjects collection */
@@ -175,4 +208,9 @@ export interface DeviceContextAPI<DeviceState> {
 
 	/** Reset the tracked device state to "state" and notify the conductor to reset the resolver */
 	resetToState: (state: DeviceState) => Promise<void>
+
+	/** Calculate a new diff for the next state change */
+	recalcDiff: () => void
+
+	setAddressState: (address: string, state: AddressState) => void
 }

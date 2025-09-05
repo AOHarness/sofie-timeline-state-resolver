@@ -5,18 +5,17 @@ import {
 	Mappings,
 	Timeline,
 	TSRTimelineContent,
-	MultiOSCOptions,
+	MultiOscOptions,
 	SomeMappingMultiOsc,
 	Mapping,
 	DeviceStatus,
 	StatusCode,
-	ActionExecutionResult,
+	MultiOscDeviceTypes,
 } from 'timeline-state-resolver-types'
-import { Device } from '../../service/device'
+import type { Device, CommandWithContext, DeviceContextAPI } from 'timeline-state-resolver-api'
 import { OSCConnection } from './deviceConnection'
 import { ResolvedTimelineObjectInstance } from 'superfly-timeline'
 import * as osc from 'osc'
-import { CommandWithContext } from '../..'
 
 export interface MultiOscInitTestOptions {
 	oscSenders?: Record<string, (msg: osc.OscMessage, address?: string | undefined, port?: number | undefined) => void>
@@ -34,15 +33,15 @@ interface OSCDeviceStateContent extends OSCMessageCommandContent {
 	fromTlObject: string
 }
 
-export interface MultiOscCommandWithContext extends CommandWithContext {
-	command: OSCDeviceStateContent
-}
+export type MultiOscCommandWithContext = CommandWithContext<OSCDeviceStateContent, string>
 
 /**
  * This is a generic wrapper for any osc-enabled device.
  */
-export class MultiOSCMessageDevice extends Device<MultiOSCOptions, MultiOSCDeviceState, MultiOscCommandWithContext> {
-	readonly actions: Record<string, (id: string, payload?: Record<string, any>) => Promise<ActionExecutionResult>> = {}
+export class MultiOSCMessageDevice
+	implements Device<MultiOscDeviceTypes, MultiOSCDeviceState, MultiOscCommandWithContext>
+{
+	readonly actions = null
 
 	private _connections: Record<string, OSCConnection> = {}
 	private _commandQueue: Array<MultiOscCommandWithContext> = []
@@ -50,7 +49,11 @@ export class MultiOSCMessageDevice extends Device<MultiOSCOptions, MultiOSCDevic
 
 	private _timeBetweenCommands: number | undefined
 
-	async init(initOptions: MultiOSCOptions, testOptions?: MultiOscInitTestOptions): Promise<boolean> {
+	constructor(protected context: DeviceContextAPI<MultiOSCDeviceState>) {
+		// Nothing
+	}
+
+	async init(initOptions: MultiOscOptions, testOptions?: MultiOscInitTestOptions): Promise<boolean> {
 		this._timeBetweenCommands = initOptions.timeBetweenCommands
 
 		for (const connOptions of initOptions.connections) {

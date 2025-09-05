@@ -4,7 +4,9 @@
   "version": "0.0.0",
   "workspaces": {
     "packages": [
+      "packages/timeline-state-resolver-tools",
       "packages/timeline-state-resolver-types",
+      "packages/timeline-state-resolver-api",
       "packages/timeline-state-resolver",
       "packages/quick-tsr"
     ]
@@ -36,7 +38,7 @@
     "@sofie-automation/code-standard-preset": "~2.5.2",
     "@types/debug": "^4.1.12",
     "@types/jest": "^29.5.12",
-    "@types/node": "^16.18.105",
+    "@types/node": "^20.19.10",
     "@types/sprintf-js": "^1.1.4",
     "@types/underscore": "^1.11.15",
     "@types/ws": "^8.5.12",
@@ -52,5 +54,5 @@
     "typescript": "~4.9.5"
   },
   "prettier": "@sofie-automation/code-standard-preset/.prettierrc.json",
-  "packageManager": "yarn@4.6.0"
+  "packageManager": "yarn@3.5.0"
 }

@@ -1,7 +1,13 @@
 {
-	"$schema": "../../../$schemas/mapping-schema.json",
+	"$schema": "../../../../../timeline-state-resolver-api/$schemas/mapping-schema.json",
 	"default": "auxilliary",
 	"mappings": {
+		"controlValue": {
+			"type": "object",
+			"properties": {},
+			"required": [],
+			"additionalProperties": false
+		},
 		"mixEffect": {
 			"type": "object",
 			"properties": {
