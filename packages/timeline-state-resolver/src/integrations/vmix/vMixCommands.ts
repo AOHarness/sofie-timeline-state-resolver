@@ -239,7 +239,7 @@ export interface VMixStateCommandSetImage extends VMixStateCommandBase {
 	value: string
 }
 export type VMixStateCommand =
-	| VMixStateCommandPreviewInput
+	| VMixStateCommandPreviewInput 
 	| VMixStateCommandTransition
 	| VMixStateCommandAudio
 	| VMixStateCommandAudioBalance

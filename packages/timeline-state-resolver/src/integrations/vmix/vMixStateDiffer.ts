@@ -72,8 +72,11 @@ export interface VMixMix {
 }
 
 export interface VMixInput {
+	key?: string
 	number?: number
 	type?: VMixInputType | string
+	title?: string
+	shortTitle?: string
 	name?: string
 	filePath?: string
 	state?: 'Paused' | 'Running' | 'Completed'
@@ -98,8 +101,19 @@ export interface VMixInputAudio {
 	balance?: number
 	fade?: number
 	solo?: boolean
+	soloPFL?: boolean
 	audioBuses?: string
 	audioAuto?: boolean
+	meterF1?: number
+	meterF2?: number
+	gainDb?: number
+}
+
+export interface VMixInputCall {
+	callPassword?: number
+	callConnected?: boolean
+	callVideoSource?: 'Output1' | 'Output2' | 'Output3' | 'Output4' | 'None'
+	callAudioSource?: 'BusA' | 'BusB' | 'BusC' | 'BusD' | 'BusE' | 'BusF' | 'BusG' | 'Master' | 'Headphones'
 }
 
 export interface VMixOutput {
@@ -135,6 +149,7 @@ export interface VMixDefaultStateFactory {
 	getDefaultState: () => VMixStateExtended
 	getDefaultInputState: (inputIndex: number | string | undefined) => VMixInput
 	getDefaultInputAudioState: (inputIndex: number | string | undefined) => VMixInputAudio
+	getDefaultInputCallState: (inputIndex: number | string | undefined) => VMixInputCall
 	getDefaultAudioBusState: () => VMixAudioBusBase
 }
 
@@ -239,8 +254,13 @@ export class VMixStateDiffer implements VMixDefaultStateFactory {
 			volume: 100,
 			balance: 0,
 			fade: 0,
+			solo: false,
+			soloPFL: false,
 			audioBuses: 'M',
 			audioAuto: true,
+			meterF1: 0,
+			meterF2: 0,
+			gainDb: 0,
 		}
 	}
 
